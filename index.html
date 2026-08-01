@@ -302,8 +302,17 @@ html, body {
 }
 .response-item.fresh { animation: popIn 0.28s ease; }
 .response-item.pending { opacity: 0.65; }
-.response-item.reply { margin-left: 40px; background: var(--white); border: 1px solid var(--gray-2); }
-.reply-elbow { color: var(--gray-3); font-weight: 700; flex-shrink: 0; margin-right: -3px; }
+.reply-group {
+  margin-left: 24px; padding-left: 14px;
+  border-left: 3px solid var(--sky-mid);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.response-item.reply { background: #eef5fc; border: 1px solid #dbe8f4; padding: 8px 12px; }
+.response-item.reply .response-avatar { width: 26px; height: 26px; border-radius: 8px; font-size: 0.6rem; }
+.reply-chip {
+  font-size: 0.58rem; font-weight: 800; color: #6b4fa3;
+  background: var(--purple-bg); border-radius: 7px; padding: 2px 8px;
+}
 .rec-time { font-size: 0.65rem; font-weight: 600; color: var(--text-soft); }
 .sort-seg { margin-left: auto; display: flex; background: var(--gray-2); border-radius: 10px; padding: 2.5px; flex-shrink: 0; }
 .sort-seg button {
@@ -321,7 +330,7 @@ html, body {
 .reply-input-row {
   display: flex; gap: 8px; align-items: stretch;
   background: var(--white); border: 2px solid var(--purple);
-  border-radius: var(--radius-sm); padding: 6px 8px; margin-left: 40px;
+  border-radius: var(--radius-sm); padding: 6px 8px; margin-left: 38px;
   animation: popIn 0.25s ease;
 }
 @keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -457,7 +466,7 @@ html, body {
 #share-card .sc-sec-title { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; }
 #share-card .sc-topic { font-size: 13px; color: #47617d; font-weight: 600; background: #f6f9fc; border-radius: 9px; padding: 7px 12px; margin-bottom: 8px; line-height: 1.5; }
 #share-card .sc-entry { display: flex; gap: 9px; padding: 9px 0; border-top: 1px solid #eef3f8; align-items: flex-start; }
-#share-card .sc-entry.sc-reply { margin-left: 34px; border-top: 1px dashed #eef3f8; }
+#share-card .sc-entry.sc-reply { margin-left: 24px; padding-left: 12px; border-left: 3px solid #d3e9f8; border-top: 1px dashed #eef3f8; background: #f4f9fd; border-radius: 0 8px 8px 0; }
 #share-card .sc-time { font-size: 10.5px; font-weight: 600; color: #7d92a8; margin-left: 5px; }
 #share-card .sc-avatar { width: 28px; height: 28px; border-radius: 9px; color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #share-card .sc-ename { font-size: 11.5px; font-weight: 800; color: #21618f; margin-bottom: 1px; }
@@ -1269,10 +1278,9 @@ function itemHTML(r, isReply, pendingIds) {
   const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
   return `
   <div class="response-item ${isReply ? 'reply' : ''} ${fresh ? 'fresh' : ''} ${isPending ? 'pending' : ''}">
-    ${isReply ? '<div class="reply-elbow">↳</div>' : ''}
     <div class="response-avatar" style="background:${avatarColor(r.name || '?')}">${esc((r.name || '?').charAt(0))}</div>
     <div class="response-body">
-      <div class="response-name">${esc(r.name)} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
+      <div class="response-name">${esc(r.name)} ${isReply ? '<span class="reply-chip">↳ 답글</span>' : ''} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
       <div class="response-text">${esc(r.text)}</div>
       <div class="reactions">${reacts}${replyBtn}</div>
     </div>
@@ -1315,7 +1323,8 @@ function renderSectionList(secKey) {
   const pendingIds = new Set(PENDING.map(p => p.id));
   list.innerHTML = sorted.map(r => {
     let html = itemHTML(r, false, pendingIds);
-    (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(k => { html += itemHTML(k, true, pendingIds); });
+    const childArr = (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    if (childArr.length) html += `<div class="reply-group">${childArr.map(k => itemHTML(k, true, pendingIds)).join('')}</div>`;
     if (replyTarget === r.id) html += replyInputHTML(secKey, r);
     return html;
   }).join('');
