@@ -635,7 +635,7 @@ html, body {
    ============================================================ */
 
 /* ── 설정 ── */
-const DEFAULT_API_URL = '';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwaYy83PH-3nyE2F_djvbmBtWn0g10s9cC1SJYXWqkh_IeOfDzWrR2EYZBbtn2akUZGWQ/exec';
 const LS = 'am26_';
 const API_URL = (localStorage.getItem(LS + 'api_url') || DEFAULT_API_URL).trim();
 const ONLINE = /^https:\/\//.test(API_URL) || /^http:\/\/(localhost|127\.0\.0\.1)/.test(API_URL);
