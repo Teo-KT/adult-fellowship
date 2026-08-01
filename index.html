@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>장년부 모임 기록 — 말씀·도서·가정 중보기도</title>
+<title>선한사람 — 예심교회 장년부 모임</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
 
@@ -302,6 +302,28 @@ html, body {
 }
 .response-item.fresh { animation: popIn 0.28s ease; }
 .response-item.pending { opacity: 0.65; }
+.response-item.reply { margin-left: 40px; background: var(--white); border: 1px solid var(--gray-2); }
+.reply-elbow { color: var(--gray-3); font-weight: 700; flex-shrink: 0; margin-right: -3px; }
+.rec-time { font-size: 0.65rem; font-weight: 600; color: var(--text-soft); }
+.sort-seg { margin-left: auto; display: flex; background: var(--gray-2); border-radius: 10px; padding: 2.5px; flex-shrink: 0; }
+.sort-seg button {
+  border: none; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 0.67rem; font-weight: 700; color: var(--text-soft);
+  padding: 4px 10px; border-radius: 8px; transition: all 0.15s;
+}
+.sort-seg button.on { background: var(--white); color: var(--text-dark); box-shadow: var(--shadow-sm); }
+.reply-btn {
+  font-size: 0.72rem; padding: 3px 10px; border-radius: 12px;
+  background: var(--white); border: 1px solid var(--gray-2);
+  cursor: pointer; transition: all 0.15s; color: var(--text-mid);
+}
+.reply-btn:hover, .reply-btn.on { background: var(--purple-bg); border-color: var(--purple); color: #6b4fa3; }
+.reply-input-row {
+  display: flex; gap: 8px; align-items: stretch;
+  background: var(--white); border: 2px solid var(--purple);
+  border-radius: var(--radius-sm); padding: 6px 8px; margin-left: 40px;
+  animation: popIn 0.25s ease;
+}
 @keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .response-avatar {
   flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
@@ -435,6 +457,8 @@ html, body {
 #share-card .sc-sec-title { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; }
 #share-card .sc-topic { font-size: 13px; color: #47617d; font-weight: 600; background: #f6f9fc; border-radius: 9px; padding: 7px 12px; margin-bottom: 8px; line-height: 1.5; }
 #share-card .sc-entry { display: flex; gap: 9px; padding: 9px 0; border-top: 1px solid #eef3f8; align-items: flex-start; }
+#share-card .sc-entry.sc-reply { margin-left: 34px; border-top: 1px dashed #eef3f8; }
+#share-card .sc-time { font-size: 10.5px; font-weight: 600; color: #7d92a8; margin-left: 5px; }
 #share-card .sc-avatar { width: 28px; height: 28px; border-radius: 9px; color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #share-card .sc-ename { font-size: 11.5px; font-weight: 800; color: #21618f; margin-bottom: 1px; }
 #share-card .sc-etext { font-size: 13.5px; line-height: 1.6; color: #2c445e; word-break: break-word; white-space: pre-wrap; }
@@ -458,7 +482,7 @@ html, body {
 <div class="screen-overlay" id="gate-screen">
   <div class="gate-card">
     <div class="gate-logo">🌿</div>
-    <div class="gate-title">교회 장년부<br><span class="accent">모임 기록</span></div>
+    <div class="gate-title">예심교회 장년부<br><span class="accent">선한사람</span></div>
     <div class="gate-sub">말씀 · 도서 · 가정 중보기도</div>
     <input class="gate-input" id="gate-pw" type="password" inputmode="numeric" placeholder="비밀번호" autocomplete="off">
     <button class="gate-btn" id="gate-submit">입장하기</button>
@@ -491,8 +515,8 @@ html, body {
   <div class="header-left">
     <div class="logo-circle">🌿</div>
     <div class="header-text">
-      <div class="header-title">장년부 모임 기록</div>
-      <div class="header-sub">말씀 · 도서 · 가정 중보기도</div>
+      <div class="header-title">선한사람</div>
+      <div class="header-sub">예심교회 장년부 모임</div>
     </div>
   </div>
   <div class="header-right">
@@ -864,8 +888,8 @@ function handleBadPw() {
 }
 
 /* ── 기록 추가/삭제/좋아요 ── */
-function makeRecord(section, text) {
-  return { id: uid(), week: curWeek, section, name: authorName(), text: text || '', ts: Date.now(), reactions: {} };
+function makeRecord(section, text, parent) {
+  return { id: uid(), week: curWeek, section, name: authorName(), text: text || '', parent: parent || '', ts: Date.now(), reactions: {} };
 }
 async function pushRecord(rec) {
   RECORDS.push(rec);
@@ -1023,18 +1047,13 @@ function renderNameGroups() {
       ${ONLINE ? '명단을 불러오지 못했어요. 아래에 이름을 직접 입력해 주세요.' : '오프라인 모드에서는 이름을 직접 입력해 주세요.'}</div>`;
     return;
   }
-  const fams = familyList();
-  const byFam = {};
-  ROSTER.forEach(r => { const f = (r.family || '기타').trim() || '기타'; (byFam[f] = byFam[f] || []).push(r); });
-  const keys = fams.concat(Object.keys(byFam).filter(f => !fams.includes(f)));
-  box.innerHTML = keys.map(f => `
+  box.innerHTML = `
     <div class="fam-group">
-      <div class="fam-label">${esc(f)}</div>
-      <div class="name-grid">${(byFam[f] || []).map(m => {
+      <div class="name-grid" style="justify-content:center">${ROSTER.map(m => {
         const badge = m.role === '관리자' ? '<span class="role-badge">관리자</span>' : '';
         return `<button class="name-chip ${selName === m.name ? 'selected' : ''}" data-name="${esc(m.name)}">${esc(m.name)}${badge}</button>`;
       }).join('')}</div>
-    </div>`).join('');
+    </div>`;
   box.querySelectorAll('.name-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       selName = btn.dataset.name;
@@ -1192,7 +1211,12 @@ function renderSections() {
       <div class="sec-head">
         <div class="sec-icon" style="background:${sec.bg}">${sec.icon}</div>
         <div class="sec-meta">
-          <div class="sec-title">${sec.title} <span id="cnt-${sec.key}" style="font-size:0.72rem;color:var(--text-soft);font-weight:600"></span></div>
+          <div class="sec-title">${sec.title} <span id="cnt-${sec.key}" style="font-size:0.72rem;color:var(--text-soft);font-weight:600"></span>
+            <span class="sort-seg" id="sort-${sec.key}">
+              <button class="on" onclick="setSort('${sec.key}','time')">시간순</button>
+              <button onclick="setSort('${sec.key}','likes')">좋아요순</button>
+            </span>
+          </div>
           <div class="sec-desc">${sec.desc}</div>
           ${topicHTML(sec)}
         </div>
@@ -1210,40 +1234,123 @@ function renderSections() {
   refreshAuthorTags();
 }
 
+/* 정렬 상태 + 답글 입력 상태 */
+const sortMode = {};      /* secKey -> 'time' | 'likes' */
+let replyTarget = null;   /* 답글 입력창이 열린 기록 id */
+
+function setSort(secKey, mode) {
+  sortMode[secKey] = mode;
+  renderSectionList(secKey);
+}
+function likesOf(r) {
+  let n = 0;
+  REACT_EMOJIS.forEach(em => { n += ((r.reactions || {})[em] || []).length; });
+  return n;
+}
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date();
+  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  const hh = d.getHours(), mm = String(d.getMinutes()).padStart(2, '0');
+  const t = (hh < 12 ? '오전 ' : '오후 ') + (hh % 12 === 0 ? 12 : hh % 12) + ':' + mm;
+  return sameDay ? t : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + t;
+}
+
+function itemHTML(r, isReply, pendingIds) {
+  const reacts = REACT_EMOJIS.map(em => {
+    const names = (r.reactions && r.reactions[em]) || [];
+    const mine = PROFILE && names.includes(myName());
+    return `<button class="react-btn ${mine ? 'reacted' : ''}" data-id="${r.id}" data-em="${em}" title="${esc(names.join(', '))}">${em}${names.length ? ' ' + names.length : ''}</button>`;
+  }).join('');
+  const replyBtn = !isReply ? `<button class="reply-btn ${replyTarget === r.id ? 'on' : ''}" data-reply="${r.id}">💬 답글</button>` : '';
+  const isPending = pendingIds.has(r.id);
+  const fresh = !seenIds.has(r.id);
+  seenIds.add(r.id);
+  const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
+  return `
+  <div class="response-item ${isReply ? 'reply' : ''} ${fresh ? 'fresh' : ''} ${isPending ? 'pending' : ''}">
+    ${isReply ? '<div class="reply-elbow">↳</div>' : ''}
+    <div class="response-avatar" style="background:${avatarColor(r.name || '?')}">${esc((r.name || '?').charAt(0))}</div>
+    <div class="response-body">
+      <div class="response-name">${esc(r.name)} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
+      <div class="response-text">${esc(r.text)}</div>
+      <div class="reactions">${reacts}${replyBtn}</div>
+    </div>
+    ${delBtn}
+  </div>`;
+}
+
+function replyInputHTML(secKey, parent) {
+  return `
+  <div class="reply-input-row">
+    <span class="me-tag" onclick="openAuthorModal()">나</span>
+    <textarea class="response-input" id="replytext-${parent.id}" placeholder="${esc(parent.name)}님에게 답글 남기기…" rows="1"></textarea>
+    <button class="add-btn" data-replyadd="${parent.id}" data-sec="${secKey}" title="답글 등록">+</button>
+  </div>`;
+}
+
 function renderSectionList(secKey) {
   const list = document.getElementById('list-' + secKey);
   if (!list) return;
-  const arr = recsOf(curWeek, secKey);
+  const all = recsOf(curWeek, secKey);
   const cnt = document.getElementById('cnt-' + secKey);
-  if (cnt) cnt.textContent = arr.length ? arr.length + '개의 나눔' : '';
-  if (!arr.length) {
+  if (cnt) cnt.textContent = all.length ? all.length + '개의 나눔' : '';
+  const mode = sortMode[secKey] || 'time';
+  const seg = document.getElementById('sort-' + secKey);
+  if (seg) {
+    const btns = seg.querySelectorAll('button');
+    btns[0].classList.toggle('on', mode === 'time');
+    btns[1].classList.toggle('on', mode === 'likes');
+  }
+  if (!all.length) {
     list.innerHTML = `<div class="empty-hint">✏️ 아직 기록이 없어요. 첫 나눔을 남겨보세요!</div>`;
     return;
   }
+  const ids = new Set(all.map(r => r.id));
+  const tops = all.filter(r => !r.parent || !ids.has(r.parent));
+  const kids = {};
+  all.filter(r => r.parent && ids.has(r.parent)).forEach(r => { (kids[r.parent] = kids[r.parent] || []).push(r); });
+  const sorted = tops.slice().sort((a, b) =>
+    mode === 'likes' ? (likesOf(b) - likesOf(a)) || ((a.ts || 0) - (b.ts || 0)) : (a.ts || 0) - (b.ts || 0));
   const pendingIds = new Set(PENDING.map(p => p.id));
-  list.innerHTML = arr.map(r => {
-    const reacts = REACT_EMOJIS.map(em => {
-      const names = (r.reactions && r.reactions[em]) || [];
-      const mine = PROFILE && names.includes(myName());
-      return `<button class="react-btn ${mine ? 'reacted' : ''}" data-id="${r.id}" data-em="${em}" title="${esc(names.join(', '))}">${em}${names.length ? ' ' + names.length : ''}</button>`;
-    }).join('');
-    const isPending = pendingIds.has(r.id);
-    const fresh = !seenIds.has(r.id);
-    seenIds.add(r.id);
-    const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
-    return `
-    <div class="response-item ${fresh ? 'fresh' : ''} ${isPending ? 'pending' : ''}">
-      <div class="response-avatar" style="background:${avatarColor(r.name || '?')}">${esc((r.name || '?').charAt(0))}</div>
-      <div class="response-body">
-        <div class="response-name">${esc(r.name)} ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
-        <div class="response-text">${esc(r.text)}</div>
-        <div class="reactions">${reacts}</div>
-      </div>
-      ${delBtn}
-    </div>`;
+  list.innerHTML = sorted.map(r => {
+    let html = itemHTML(r, false, pendingIds);
+    (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(k => { html += itemHTML(k, true, pendingIds); });
+    if (replyTarget === r.id) html += replyInputHTML(secKey, r);
+    return html;
   }).join('');
   list.querySelectorAll('.react-btn').forEach(b => b.addEventListener('click', () => toggleReaction(b.dataset.id, b.dataset.em)));
   list.querySelectorAll('.response-delete').forEach(b => b.addEventListener('click', () => deleteRecord(b.dataset.id)));
+  list.querySelectorAll('.reply-btn').forEach(b => b.addEventListener('click', () => toggleReplyBox(secKey, b.dataset.reply)));
+  list.querySelectorAll('[data-replyadd]').forEach(b => b.addEventListener('click', () => addReply(b.dataset.sec, b.dataset.replyadd)));
+  list.querySelectorAll('.reply-input-row .response-input').forEach(t => t.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const btn = t.parentElement.querySelector('[data-replyadd]');
+      addReply(btn.dataset.sec, btn.dataset.replyadd);
+    }
+  }));
+  refreshAuthorTags();
+}
+
+function toggleReplyBox(secKey, id) {
+  replyTarget = (replyTarget === id) ? null : id;
+  renderSectionList(secKey);
+  if (replyTarget) {
+    const t = document.getElementById('replytext-' + replyTarget);
+    if (t) t.focus();
+  }
+}
+
+function addReply(secKey, parentId) {
+  if (!PROFILE) { showSaveIndicator('⚠️ 먼저 로그인해 주세요', true); return; }
+  const t = document.getElementById('replytext-' + parentId);
+  if (!t) return;
+  const text = t.value.trim();
+  if (!text) { t.focus(); return; }
+  if (text.length > 2000) { alert('한 번에 2,000자까지 입력할 수 있어요.'); return; }
+  replyTarget = null;
+  pushRecord(makeRecord(secKey, text, parentId));
 }
 
 function handleInputKey(e, secKey) {
@@ -1446,26 +1553,34 @@ function download(filename, content, mime) {
 }
 function weekText(week) {
   const m = meta(week);
+  const line = (r, indent) => {
+    const likes = REACT_EMOJIS.map(em => {
+      const n = ((r.reactions || {})[em] || []).length;
+      return n ? em + n : '';
+    }).filter(Boolean).join(' ');
+    return indent + '[' + fmtTime(r.ts) + '] ' + r.name + ': ' + r.text + (likes ? '  (' + likes + ')' : '') + '\n';
+  };
   let out = '🗓️ ' + fmtTitle(week) + ' (' + fmtSub(week) + ')\n' + '='.repeat(46) + '\n';
   SECTIONS.forEach(sec => {
     out += '\n■ ' + sec.title + '\n';
     if (sec.key === 'sermon' && m.sermon) out += '   [이번 주 말씀] ' + m.sermon + '\n';
     if (sec.key === 'book' && m.book) out += '   [이번 주 분량] ' + m.book + '\n';
     if (sec.key === 'prayer' && m.families.length) out += '   [기도 가정] ' + m.families.join(', ') + '\n';
-    const arr = recsOf(week, sec.key);
-    if (!arr.length) out += '   (기록 없음)\n';
-    arr.forEach(r => {
-      const likes = REACT_EMOJIS.map(em => {
-        const n = ((r.reactions || {})[em] || []).length;
-        return n ? em + n : '';
-      }).filter(Boolean).join(' ');
-      out += '   · ' + r.name + ': ' + r.text + (likes ? '  (' + likes + ')' : '') + '\n';
+    const all = recsOf(week, sec.key);
+    if (!all.length) out += '   (기록 없음)\n';
+    const ids = new Set(all.map(r => r.id));
+    const tops = all.filter(r => !r.parent || !ids.has(r.parent)).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    const kids = {};
+    all.filter(r => r.parent && ids.has(r.parent)).forEach(r => { (kids[r.parent] = kids[r.parent] || []).push(r); });
+    tops.forEach(r => {
+      out += line(r, '   · ');
+      (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(k => { out += line(k, '      └ '); });
     });
   });
   return out + '\n';
 }
 function exportText(scope) {
-  let out = '교회 장년부 모임 기록 — 말씀·도서·가정 중보기도\n내보낸 날짜: ' + fmtKey(new Date()) + '\n\n';
+  let out = '예심교회 장년부 \'선한사람\' 모임 기록 — 말씀·도서·가정 중보기도\n내보낸 날짜: ' + fmtKey(new Date()) + '\n\n';
   if (scope === 'week') out += weekText(curWeek);
   else {
     const weeks = Array.from(new Set(RECORDS.map(r => r.week).concat(Object.keys(WEEKMETA)))).sort().reverse();
@@ -1491,26 +1606,33 @@ function loadH2C() {
 }
 function buildShareCard() {
   const m = meta(curWeek);
+  const scEntry = (r, isReply) => {
+    const likes = REACT_EMOJIS.map(em => {
+      const n = ((r.reactions || {})[em] || []).length;
+      return n ? em + ' ' + n : '';
+    }).filter(Boolean).join('  ');
+    return `<div class="sc-entry ${isReply ? 'sc-reply' : ''}">
+      <div class="sc-avatar" style="background:${avatarColor(r.name)}">${esc(r.name.charAt(0))}</div>
+      <div style="flex:1;min-width:0">
+        <div class="sc-ename">${esc(r.name)}<span class="sc-time">${fmtTime(r.ts)}</span></div>
+        <div class="sc-etext">${esc(r.text)}</div>
+        ${likes ? `<div class="sc-likes">${likes}</div>` : ''}
+      </div>
+    </div>`;
+  };
   const secHtml = SECTIONS.map(sec => {
-    const arr = recsOf(curWeek, sec.key);
+    const all = recsOf(curWeek, sec.key);
     let topic = '';
     if (sec.key === 'sermon' && m.sermon) topic = `<div class="sc-topic">📖 ${esc(m.sermon)}</div>`;
     if (sec.key === 'book' && m.book) topic = `<div class="sc-topic">📚 ${esc(m.book)}</div>`;
     if (sec.key === 'prayer' && m.families.length) topic = `<div class="sc-topic">🏠 ${m.families.map(esc).join(' · ')}</div>`;
-    const entries = arr.length ? arr.map(r => {
-      const likes = REACT_EMOJIS.map(em => {
-        const n = ((r.reactions || {})[em] || []).length;
-        return n ? em + ' ' + n : '';
-      }).filter(Boolean).join('  ');
-      return `<div class="sc-entry">
-        <div class="sc-avatar" style="background:${avatarColor(r.name)}">${esc(r.name.charAt(0))}</div>
-        <div style="flex:1;min-width:0">
-          <div class="sc-ename">${esc(r.name)}</div>
-          <div class="sc-etext">${esc(r.text)}</div>
-          ${likes ? `<div class="sc-likes">${likes}</div>` : ''}
-        </div>
-      </div>`;
-    }).join('') : '<div class="sc-empty">기록 없음</div>';
+    const ids = new Set(all.map(r => r.id));
+    const tops = all.filter(r => !r.parent || !ids.has(r.parent)).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    const kids = {};
+    all.filter(r => r.parent && ids.has(r.parent)).forEach(r => { (kids[r.parent] = kids[r.parent] || []).push(r); });
+    const entries = all.length ? tops.map(r =>
+      scEntry(r, false) + (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).map(k => scEntry(k, true)).join('')
+    ).join('') : '<div class="sc-empty">기록 없음</div>';
     return `<div class="sc-sec">
       <div class="sc-sec-head">
         <div class="sc-sec-icon" style="background:${sec.bg}">${sec.icon}</div>
@@ -1521,12 +1643,12 @@ function buildShareCard() {
   }).join('');
   document.getElementById('share-card').innerHTML = `
     <div class="sc-head">
-      <div class="sc-eyebrow">교회 장년부 모임 기록</div>
+      <div class="sc-eyebrow">예심교회 장년부 · 선한사람</div>
       <div class="sc-title">🌿 <span class="accent">${fmtTitle(curWeek)}</span> 나눔</div>
       <div class="sc-date">${fmtSub(curWeek)} · 말씀 · 도서 · 가정 중보기도</div>
     </div>
     ${secHtml}
-    <div class="sc-foot">우리의 나눔은 계속됩니다 🌱</div>`;
+    <div class="sc-foot">예심교회 장년부 선한사람 · 우리의 나눔은 계속됩니다 🌱</div>`;
 }
 async function makeShareImage() {
   showSaveIndicator('🖼️ 이미지 생성 중…');
