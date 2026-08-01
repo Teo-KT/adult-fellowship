@@ -791,11 +791,20 @@ function recsOf(week, section) {
   return RECORDS.filter(r => r.week === week && r.section === section).sort((a, b) => (a.ts || 0) - (b.ts || 0));
 }
 
+/* 시트가 week를 날짜 셀로 바꿔도 'YYYY-MM-DD'로 되돌림 */
+function normWeek(w) {
+  const s = String(w || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  return isNaN(d) ? s : fmtKey(d);
+}
+
 function ingestServer(list, weeks) {
   const serverIds = new Set((list || []).map(r => r.id));
   PENDING = PENDING.filter(p => !serverIds.has(p.id));
   savePending();
   RECORDS = (list || []).filter(r => r && r.id && r.week && r.section);
+  RECORDS.forEach(r => { r.week = normWeek(r.week); });
   PENDING.forEach(p => RECORDS.push(p));
   saveLocalRecords();
   if (weeks) {
