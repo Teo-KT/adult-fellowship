@@ -670,7 +670,11 @@ html, body {
 /* ── 설정 ── */
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzHfXVDa3Ig1s22qZ067JJYSsOht6HGwQ-83n1l-uCl0bw0tnX8oBNBPPGrUWXkrQ_nqA/exec';
 const LS = 'am26_';
-const API_URL = (localStorage.getItem(LS + 'api_url') || DEFAULT_API_URL).trim();
+/* 기기별 수동 설정(서버 연결 설정)은 내장 주소가 없거나 로컬 테스트일 때만 사용.
+   — 옛 주소나 잘못 입력된 주소가 기기에 남아 연결 오류를 일으키는 것을 방지 */
+const _apiOverride = (localStorage.getItem(LS + 'api_url') || '').trim();
+const API_URL = (_apiOverride && (!DEFAULT_API_URL || /^http:\/\/(localhost|127\.0\.0\.1)/.test(_apiOverride)))
+  ? _apiOverride : DEFAULT_API_URL;
 const ONLINE = /^https:\/\//.test(API_URL) || /^http:\/\/(localhost|127\.0\.0\.1)/.test(API_URL);
 /* 오프라인 모드 전용 비밀번호(SHA-256). 온라인 모드에서는 서버(시트)가 검증합니다. */
 const GATE_HASH = 'd1858bd45ba9aa024308cdda67e91654466afd377d9e5fe0618223a17ff46313';
@@ -793,7 +797,7 @@ function familyList() {
 /* ── API ── */
 async function api(payload, timeoutMs) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs || 15000);
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || 25000);
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
