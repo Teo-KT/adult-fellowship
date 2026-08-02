@@ -986,6 +986,7 @@ function showProfileScreen() {
   document.getElementById('profile-screen').classList.add('show');
   document.getElementById('offline-note').style.display = ONLINE ? 'none' : 'block';
   renderNameGroups();
+  refreshRosterBg();
 }
 function enterApp() {
   document.getElementById('gate-screen').classList.remove('show');
@@ -994,6 +995,22 @@ function enterApp() {
   renderWeek();
   if (ONLINE) { syncNow(true); startPolling(); }
   else setSyncPill('', '⚪ 오프라인 (이 기기 저장)');
+  refreshRosterBg();
+}
+
+/* 시트 명단(이름·가정·역할)이 바뀌면 재로그인 없이도 반영되도록 백그라운드 갱신 */
+function refreshRosterBg() {
+  if (!ONLINE || !AUTH.ok) return;
+  api({ action: 'roster', pw: AUTH.pw }).then(r => {
+    if (!(r && r.ok && Array.isArray(r.roster) && r.roster.length)) return;
+    if (JSON.stringify(r.roster) === JSON.stringify(ROSTER)) return;
+    ROSTER = r.roster;
+    localStorage.setItem(LS + 'roster', JSON.stringify(ROSTER));
+    refreshProfileRole();
+    updateIdentityUI();
+    if (document.getElementById('profile-screen').classList.contains('show')) renderNameGroups();
+    else renderWeek();
+  }).catch(() => {});
 }
 
 async function submitGate() {
@@ -1723,30 +1740,8 @@ document.getElementById('author-free').addEventListener('keydown', e => {
 });
 
 if (!AUTH.ok) showGate();
-else if (!PROFILE) {
-  if (ONLINE && !ROSTER.length) {
-    api({ action: 'roster', pw: AUTH.pw }).then(r => {
-      if (r && r.ok && Array.isArray(r.roster)) {
-        ROSTER = r.roster;
-        localStorage.setItem(LS + 'roster', JSON.stringify(ROSTER));
-      }
-      showProfileScreen();
-    }).catch(() => showProfileScreen());
-  } else showProfileScreen();
-} else {
-  if (ONLINE && !ROSTER.length) {
-    api({ action: 'roster', pw: AUTH.pw }).then(r => {
-      if (r && r.ok && Array.isArray(r.roster)) {
-        ROSTER = r.roster;
-        localStorage.setItem(LS + 'roster', JSON.stringify(ROSTER));
-        refreshProfileRole();
-        updateIdentityUI();
-        renderWeek();
-      }
-    }).catch(() => {});
-  }
-  enterApp();
-}
+else if (!PROFILE) showProfileScreen();
+else enterApp();
 </script>
 </body>
 </html>
