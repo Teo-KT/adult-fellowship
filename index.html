@@ -850,7 +850,7 @@ function ingestServer(list, weeks) {
     saveWeekMetaLocal();
   }
   const sig = JSON.stringify(RECORDS) + JSON.stringify(WEEKMETA);
-  if (sig !== lastListSig) { lastListSig = sig; renderWeek(); }
+  if (sig !== lastListSig) { lastListSig = sig; renderDataOnly(); }
 }
 
 /* ── 동기화 ── */
@@ -1013,7 +1013,7 @@ function refreshRosterBg() {
     refreshProfileRole();
     updateIdentityUI();
     if (document.getElementById('profile-screen').classList.contains('show')) renderNameGroups();
-    else renderWeek();
+    else renderDataOnly();
   }).catch(() => {});
 }
 
@@ -1231,7 +1231,23 @@ function topicHTML(sec) {
     const v = sec.key === 'sermon' ? m.sermon : m.book;
     val = v ? esc(v) : `<span style="color:var(--text-soft);font-weight:500">${sec.topicEmpty}</span>`;
   }
-  return `<div class="sec-topic"><span class="topic-label" style="color:${sec.color}">${sec.topicLabel}</span> ${val} ${editBtn}</div>`;
+  return `<div class="sec-topic" id="topic-${sec.key}"><span class="topic-label" style="color:${sec.color}">${sec.topicLabel}</span> ${val} ${editBtn}</div>`;
+}
+
+/* 주제 줄만 부분 갱신 (입력창을 건드리지 않음) */
+function renderTopic(secKey) {
+  const sec = SECTIONS.find(s => s.key === secKey);
+  const el = document.getElementById('topic-' + secKey);
+  if (!sec || !el) return;
+  el.outerHTML = topicHTML(sec);
+  const fresh = document.getElementById('topic-' + secKey);
+  const btn = fresh && fresh.querySelector('.topic-edit');
+  if (btn) btn.addEventListener('click', () => editTopic(secKey));
+}
+
+/* 데이터만 부분 갱신 — 작성 중인 입력 내용을 보존 */
+function renderDataOnly() {
+  SECTIONS.forEach(s => { renderTopic(s.key); renderSectionList(s.key); });
 }
 
 function renderSections() {
@@ -1321,6 +1337,14 @@ function replyInputHTML(secKey, parent) {
 function renderSectionList(secKey) {
   const list = document.getElementById('list-' + secKey);
   if (!list) return;
+  /* 재렌더링 전, 이 목록 안에서 작성 중이던 답글 내용을 보존 */
+  let savedReply = null;
+  if (replyTarget) {
+    const rt = document.getElementById('replytext-' + replyTarget);
+    if (rt && rt.closest('#list-' + secKey)) {
+      savedReply = { id: replyTarget, val: rt.value, focus: document.activeElement === rt, s: rt.selectionStart, e: rt.selectionEnd };
+    }
+  }
   const all = recsOf(curWeek, secKey);
   const cnt = document.getElementById('cnt-' + secKey);
   if (cnt) cnt.textContent = all.length ? all.length + '개의 나눔' : '';
@@ -1360,6 +1384,17 @@ function renderSectionList(secKey) {
       addReply(btn.dataset.sec, btn.dataset.replyadd);
     }
   }));
+  /* 보존해 둔 답글 내용 복원 */
+  if (savedReply) {
+    const rt2 = document.getElementById('replytext-' + savedReply.id);
+    if (rt2) {
+      rt2.value = savedReply.val;
+      if (savedReply.focus) {
+        rt2.focus();
+        try { rt2.setSelectionRange(savedReply.s, savedReply.e); } catch (e) { /* 무시 */ }
+      }
+    }
+  }
   refreshAuthorTags();
 }
 
@@ -1406,7 +1441,7 @@ async function setMeta(week, patch) {
   const next = { sermon: cur.sermon, book: cur.book, families: cur.families, ...patch };
   WEEKMETA[week] = next;
   saveWeekMetaLocal();
-  renderWeek();
+  SECTIONS.forEach(s => renderTopic(s.key));
   if (ONLINE) {
     try {
       const r = await api({ action: 'setmeta', pw: AUTH.pw, week, meta: next, by: { name: myName() } });
