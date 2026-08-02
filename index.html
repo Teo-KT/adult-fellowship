@@ -627,7 +627,11 @@ html, body {
     <div class="export-options">
       <button class="export-opt" onclick="exportText('week')">
         <span class="eo-icon">🗓️</span>
-        <span><span class="eo-title">이번 주 기록 (.txt)</span><br><span class="eo-desc">지금 보고 있는 주의 기록만 문서로 저장</span></span>
+        <span><span class="eo-title">이번 주 — 순서별 (.txt)</span><br><span class="eo-desc">지금 보고 있는 주의 기록을 말씀·도서·기도 순서로</span></span>
+      </button>
+      <button class="export-opt" onclick="exportText('people-week')">
+        <span class="eo-icon">🧑</span>
+        <span><span class="eo-title">이번 주 — 사람별 (.txt)</span><br><span class="eo-desc">지금 보고 있는 주의 기록을 사람별로 모아 정리</span></span>
       </button>
       <button class="export-opt" onclick="exportText('weeks')">
         <span class="eo-icon">📚</span>
@@ -1726,16 +1730,17 @@ function expBySections() {
   });
   return out;
 }
-function expByPeople() {
+function expByPeople(weekOnly) {
+  const pool = weekOnly ? RECORDS.filter(r => r.week === weekOnly) : RECORDS;
   const names = ROSTER.map(r => r.name);
-  RECORDS.forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
+  pool.forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
   const secTitle = {};
   SECTIONS.forEach(s => secTitle[s.key] = s.title);
   const byId = {};
   RECORDS.forEach(r => { byId[r.id] = r; });
   let out = '';
   names.forEach(name => {
-    const mine = RECORDS.filter(r => r.name === name)
+    const mine = pool.filter(r => r.name === name)
       .sort((a, b) => a.week === b.week ? (a.ts || 0) - (b.ts || 0) : (a.week < b.week ? -1 : 1));
     if (!mine.length) return;
     out += '◆ ' + name + '  (' + mine.length + '개의 나눔)\n' + '─'.repeat(EXP_W) + '\n';
@@ -1743,7 +1748,7 @@ function expByPeople() {
       const likes = expLikes(r);
       const replyMark = r.parent
         ? (byId[r.parent] ? ' · ' + byId[r.parent].name + '님 글에 답글' : ' · 답글') : '';
-      out += '▷ ' + fmtTitle(r.week) + ' · ' + (secTitle[r.section] || r.section) + replyMark
+      out += '▷ ' + (weekOnly ? '' : fmtTitle(r.week) + ' · ') + (secTitle[r.section] || r.section) + replyMark
         + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '') + '\n';
       out += expIndent(r.text, '    ') + '\n\n';
     });
@@ -1756,6 +1761,9 @@ function exportText(scope) {
   if (scope === 'week') {
     out = expHeader(fmtTitle(curWeek) + ' 기록') + expWeekBlock(curWeek);
     name = '선한사람_기록_' + curWeek + '.txt';
+  } else if (scope === 'people-week') {
+    out = expHeader(fmtTitle(curWeek) + ' 기록 — 사람별 정리') + expByPeople(curWeek);
+    name = '선한사람_기록_' + curWeek + '_사람별.txt';
   } else if (scope === 'weeks') {
     out = expHeader('전체 기록 — 주차별 정리');
     const ws = allWeeksSorted(true);
