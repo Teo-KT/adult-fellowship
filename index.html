@@ -333,6 +333,29 @@ html, body {
   border-radius: var(--radius-sm); padding: 6px 8px; margin-left: 38px;
   animation: popIn 0.25s ease;
 }
+
+/* 녹음 */
+.mic-btn {
+  flex-shrink: 0; width: 42px; border-radius: 10px;
+  border: 1.5px solid var(--gray-2); background: var(--gray-1);
+  cursor: pointer; font-size: 1.05rem; align-self: stretch;
+  transition: all 0.2s;
+}
+.mic-btn:hover { border-color: var(--coral); background: var(--coral-bg); }
+.rec-stage { text-align: center; padding: 10px 0 4px; }
+.rec-timer { font-size: 2.2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-dark); }
+.rec-timer.on { color: var(--coral); animation: pulse 1.2s infinite; }
+.rec-state { font-size: 0.8rem; color: var(--text-soft); font-weight: 600; margin-top: 4px; }
+.rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--coral); margin-right: 6px; animation: pulse 1.2s infinite; }
+.rec-preview { width: 100%; margin-top: 10px; }
+.rec-audio { margin-top: 7px; }
+.rec-audio audio { width: 100%; max-width: 420px; height: 38px; display: block; }
+.rec-alt { font-size: 0.7rem; color: var(--text-soft); text-decoration: underline; }
+.rec-err {
+  margin-top: 9px; font-size: 0.78rem; font-weight: 600; color: var(--coral);
+  background: var(--coral-bg); border-radius: 9px; padding: 8px 12px; display: none;
+}
+.rec-err.show { display: block; }
 @keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .response-avatar {
   flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
@@ -589,6 +612,21 @@ html, body {
       <button class="modal-btn ghost" onclick="closeFamilyModal()">취소</button>
       <button class="modal-btn blue" id="family-save" onclick="saveFamilies()">저장</button>
     </div>
+  </div>
+</div>
+
+<!-- 녹음 모달 -->
+<div class="modal-backdrop" id="rec-backdrop" onclick="if(event.target===this)cancelRec()">
+  <div class="modal">
+    <div class="modal-title">🎤 녹음으로 나눔 남기기</div>
+    <div class="modal-sub">최대 3분까지 녹음할 수 있어요. 말한 내용을 <b>글자로</b> 남기고 싶다면, 입력창을 누른 뒤 휴대폰 키보드의 🎤(받아쓰기)를 사용해 보세요.</div>
+    <div class="rec-stage">
+      <div class="rec-timer" id="rec-timer">0:00</div>
+      <div class="rec-state" id="rec-state">준비 중…</div>
+      <audio class="rec-preview" id="rec-preview" controls style="display:none"></audio>
+      <div class="rec-err" id="rec-err"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px" id="rec-actions"></div>
   </div>
 </div>
 
@@ -1299,6 +1337,7 @@ function renderSections() {
         <span class="me-tag" id="metag-${sec.key}" onclick="openAuthorModal()">나</span>
         <textarea class="response-input" id="text-${sec.key}" placeholder="${sec.placeholder}" rows="1"
           onkeydown="handleInputKey(event, '${sec.key}')"></textarea>
+        <button class="mic-btn" onclick="openRecModal('${sec.key}')" title="녹음으로 나눔 남기기">🎤</button>
         <button class="add-btn" onclick="addResponse('${sec.key}')" title="기록 추가">+</button>
       </div>
       <div class="responses-list" id="list-${sec.key}"></div>
@@ -1341,12 +1380,18 @@ function itemHTML(r, isReply, pendingIds) {
   const fresh = !seenIds.has(r.id);
   seenIds.add(r.id);
   const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
+  const safeAudio = (typeof r.audio === 'string' && /^[\w-]{10,}$/.test(r.audio)) ? r.audio : '';
+  const audioHtml = safeAudio
+    ? `<div class="rec-audio"><audio controls preload="none" src="https://drive.google.com/uc?export=media&id=${safeAudio}"></audio><a class="rec-alt" href="https://drive.google.com/file/d/${safeAudio}/view" target="_blank" rel="noopener">재생이 안 되면 드라이브에서 듣기 ↗</a></div>`
+    : '';
+  const hideText = safeAudio && r.text === '(녹음 나눔)';
   return `
   <div class="response-item ${isReply ? 'reply' : ''} ${fresh ? 'fresh' : ''} ${isPending ? 'pending' : ''}">
     <div class="response-avatar" style="background:${avatarColor(r.name || '?')}">${esc((r.name || '?').charAt(0))}</div>
     <div class="response-body">
-      <div class="response-name">${esc(r.name)} ${isReply ? '<span class="reply-chip">↳ 답글</span>' : ''} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
-      <div class="response-text">${esc(r.text)}</div>
+      <div class="response-name">${esc(r.name)} ${safeAudio ? '<span class="reply-chip">🎤 녹음</span>' : ''} ${isReply ? '<span class="reply-chip">↳ 답글</span>' : ''} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
+      ${hideText ? '' : `<div class="response-text">${esc(r.text)}</div>`}
+      ${audioHtml}
       <div class="reactions">${reacts}${replyBtn}</div>
     </div>
     ${delBtn}
@@ -1444,6 +1489,153 @@ function addReply(secKey, parentId) {
   if (text.length > 2000) { alert('한 번에 2,000자까지 입력할 수 있어요.'); return; }
   replyTarget = null;
   pushRecord(makeRecord(secKey, text, parentId));
+}
+
+/* ── 녹음 나눔 ── */
+const REC_MAX_SEC = 180;
+let recCtx = null;
+
+function pickAudioMime() {
+  if (!window.MediaRecorder) return '';
+  const cands = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+  for (const c of cands) {
+    try { if (MediaRecorder.isTypeSupported(c)) return c; } catch (e) { /* 무시 */ }
+  }
+  return '';
+}
+function recFmt(sec) { return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+function recSetActions(html) { document.getElementById('rec-actions').innerHTML = html; }
+function recErr(msg) {
+  const el = document.getElementById('rec-err');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+async function openRecModal(section) {
+  if (!PROFILE) { showSaveIndicator('⚠️ 먼저 로그인해 주세요', true); return; }
+  if (!ONLINE) { alert('녹음 나눔은 공유 서버에 연결된 상태에서만 쓸 수 있어요.'); return; }
+  const mime = pickAudioMime();
+  if (!mime || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('이 브라우저는 녹음을 지원하지 않아요.\n입력창을 누른 뒤 키보드의 🎤 받아쓰기를 이용해 주세요.');
+    return;
+  }
+  document.getElementById('rec-err').classList.remove('show');
+  const pv = document.getElementById('rec-preview');
+  pv.style.display = 'none'; pv.removeAttribute('src');
+  document.getElementById('rec-timer').textContent = '0:00';
+  document.getElementById('rec-timer').classList.remove('on');
+  document.getElementById('rec-state').textContent = '마이크 준비 중…';
+  recSetActions('<button class="modal-btn ghost" onclick="cancelRec()">취소</button>');
+  document.getElementById('rec-backdrop').classList.add('show');
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    document.getElementById('rec-state').textContent = '마이크를 사용할 수 없음';
+    recErr('마이크 권한이 필요해요. 브라우저 설정에서 마이크를 허용한 뒤 다시 시도해 주세요.');
+    return;
+  }
+  let mr = null;
+  try { mr = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 48000 }); }
+  catch (e) { mr = new MediaRecorder(stream); }
+  recCtx = { section, mr, stream, chunks: [], blob: null, mime: (mr.mimeType || mime), sec: 0, timer: null };
+  mr.ondataavailable = e => { if (recCtx && e.data && e.data.size) recCtx.chunks.push(e.data); };
+  mr.onstop = () => {
+    if (!recCtx) return;
+    const baseType = String(recCtx.mime).split(';')[0] || 'audio/mp4';
+    recCtx.blob = new Blob(recCtx.chunks, { type: baseType });
+    recCtx.stream.getTracks().forEach(t => t.stop());
+    pv.src = URL.createObjectURL(recCtx.blob);
+    pv.style.display = 'block';
+    document.getElementById('rec-timer').classList.remove('on');
+    document.getElementById('rec-state').textContent =
+      '녹음 완료 (' + Math.round(recCtx.blob.size / 1024) + 'KB) — 들어보고 올려주세요';
+    recSetActions(`
+      <button class="modal-btn ghost" onclick="cancelRec()">취소</button>
+      <button class="modal-btn ghost" onclick="retryRec()">다시 녹음</button>
+      <button class="modal-btn primary" onclick="uploadRec()">올리기 ⬆️</button>`);
+  };
+  mr.start(1000);
+  document.getElementById('rec-state').innerHTML = '<span class="rec-dot"></span>녹음 중… (최대 3분)';
+  document.getElementById('rec-timer').classList.add('on');
+  recSetActions(`
+    <button class="modal-btn ghost" onclick="cancelRec()">취소</button>
+    <button class="modal-btn primary" onclick="stopRec()">녹음 끝 ⏹</button>`);
+  recCtx.timer = setInterval(() => {
+    if (!recCtx) return;
+    recCtx.sec++;
+    document.getElementById('rec-timer').textContent = recFmt(recCtx.sec);
+    if (recCtx.sec >= REC_MAX_SEC) stopRec();
+  }, 1000);
+}
+
+function stopRec() {
+  if (!recCtx || recCtx.mr.state === 'inactive') return;
+  clearInterval(recCtx.timer);
+  recCtx.mr.stop();
+}
+function retryRec() {
+  const section = recCtx && recCtx.section;
+  cancelRec();
+  if (section) openRecModal(section);
+}
+function cancelRec() {
+  if (recCtx) {
+    clearInterval(recCtx.timer);
+    try { if (recCtx.mr.state !== 'inactive') recCtx.mr.stop(); } catch (e) { /* 무시 */ }
+    try { recCtx.stream.getTracks().forEach(t => t.stop()); } catch (e) { /* 무시 */ }
+  }
+  recCtx = null;
+  document.getElementById('rec-backdrop').classList.remove('show');
+}
+
+async function uploadRec() {
+  if (!recCtx || !recCtx.blob) return;
+  const blob = recCtx.blob;
+  if (blob.size > 6 * 1024 * 1024) { recErr('녹음이 너무 커요. 조금 더 짧게 녹음해 주세요.'); return; }
+  document.getElementById('rec-err').classList.remove('show');
+  document.getElementById('rec-state').textContent = '올리는 중… 잠시만 기다려 주세요';
+  recSetActions('<button class="modal-btn ghost" disabled>올리는 중…</button>');
+  const b64 = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1] || '');
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+  const rec = {
+    id: uid(), ts: Date.now(), week: curWeek, section: recCtx.section,
+    name: authorName(), text: '(녹음 나눔)',
+    audioData: b64, audioType: blob.type || 'audio/mp4',
+  };
+  try {
+    const r = await apiRetry({ action: 'addaudio', pw: AUTH.pw, rec }, 1, 90000);
+    if (r && r.ok) {
+      RECORDS.push({
+        id: rec.id, ts: rec.ts, week: rec.week, section: rec.section,
+        name: rec.name, text: rec.text, reactions: {}, parent: '', audio: r.audio || '',
+      });
+      saveLocalRecords();
+      renderSectionList(rec.section);
+      cancelRec();
+      showSaveIndicator('🎤 녹음이 공유되었습니다');
+    } else if (r && r.error === 'bad_pw') { handleBadPw(); }
+    else if (r && r.error === 'unknown_action') {
+      document.getElementById('rec-state').textContent = '서버 업데이트 필요';
+      recErr('서버가 아직 녹음을 지원하지 않아요. 관리자에게 "Apps Script 새 버전 배포"를 요청해 주세요.');
+      recSetActions('<button class="modal-btn ghost" onclick="cancelRec()">닫기</button>');
+    } else if (r && r.error === 'audio_too_big') {
+      recErr('녹음 파일이 너무 커서 올릴 수 없어요. 더 짧게 녹음해 주세요.');
+      recSetActions(`
+        <button class="modal-btn ghost" onclick="cancelRec()">닫기</button>
+        <button class="modal-btn primary" onclick="retryRec()">다시 녹음</button>`);
+    } else { throw new Error('upload_failed'); }
+  } catch (e) {
+    document.getElementById('rec-state').textContent = '업로드 실패';
+    recErr('업로드에 실패했어요. 네트워크를 확인한 뒤 다시 시도해 주세요. (녹음은 그대로 있어요)');
+    recSetActions(`
+      <button class="modal-btn ghost" onclick="cancelRec()">취소</button>
+      <button class="modal-btn primary" onclick="uploadRec()">다시 올리기</button>`);
+  }
 }
 
 function handleInputKey(e, secKey) {
@@ -1665,8 +1857,10 @@ function expIndent(text, pad) {
 }
 function expEntry(r, pad, replyMark) {
   const likes = expLikes(r);
-  const head = pad + (replyMark ? '↳ 답글 · ' : '') + r.name + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '');
-  return head + '\n' + expIndent(r.text, pad + '   ') + '\n';
+  const head = pad + (replyMark ? '↳ 답글 · ' : '') + r.name + (r.audio ? ' 🎤' : '') + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '');
+  let out = head + '\n' + expIndent(r.text, pad + '   ') + '\n';
+  if (r.audio) out += pad + '   ▶ 녹음 듣기: https://drive.google.com/file/d/' + r.audio + '/view\n';
+  return out;
 }
 function expTree(all, pad) {
   const ids = new Set(all.map(r => r.id));
@@ -1749,8 +1943,10 @@ function expByPeople(weekOnly) {
       const replyMark = r.parent
         ? (byId[r.parent] ? ' · ' + byId[r.parent].name + '님 글에 답글' : ' · 답글') : '';
       out += '▷ ' + (weekOnly ? '' : fmtTitle(r.week) + ' · ') + (secTitle[r.section] || r.section) + replyMark
-        + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '') + '\n';
-      out += expIndent(r.text, '    ') + '\n\n';
+        + (r.audio ? ' · 🎤 녹음' : '') + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '') + '\n';
+      out += expIndent(r.text, '    ') + '\n';
+      if (r.audio) out += '    ▶ 녹음 듣기: https://drive.google.com/file/d/' + r.audio + '/view\n';
+      out += '\n';
     });
     out += '\n';
   });
