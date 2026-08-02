@@ -629,9 +629,17 @@ html, body {
         <span class="eo-icon">🗓️</span>
         <span><span class="eo-title">이번 주 기록 (.txt)</span><br><span class="eo-desc">지금 보고 있는 주의 기록만 문서로 저장</span></span>
       </button>
-      <button class="export-opt" onclick="exportText('all')">
+      <button class="export-opt" onclick="exportText('weeks')">
         <span class="eo-icon">📚</span>
-        <span><span class="eo-title">전체 기록 (.txt)</span><br><span class="eo-desc">지금까지의 모든 주 기록을 한 문서로 저장</span></span>
+        <span><span class="eo-title">전체 기록 — 주차별 (.txt)</span><br><span class="eo-desc">모든 주 기록을 주일 순서대로 정리</span></span>
+      </button>
+      <button class="export-opt" onclick="exportText('sections')">
+        <span class="eo-icon">📖</span>
+        <span><span class="eo-title">전체 기록 — 질문별 (.txt)</span><br><span class="eo-desc">말씀 나눔 · 도서 나눔 · 가정 중보기도별로 모아 정리</span></span>
+      </button>
+      <button class="export-opt" onclick="exportText('people')">
+        <span class="eo-icon">👤</span>
+        <span><span class="eo-title">전체 기록 — 사람별 (.txt)</span><br><span class="eo-desc">한 사람씩 그동안의 나눔을 모아 정리</span></span>
       </button>
     </div>
     <div class="modal-actions">
@@ -676,6 +684,8 @@ const _apiOverride = (localStorage.getItem(LS + 'api_url') || '').trim();
 const API_URL = (_apiOverride && (!DEFAULT_API_URL || /^http:\/\/(localhost|127\.0\.0\.1)/.test(_apiOverride)))
   ? _apiOverride : DEFAULT_API_URL;
 const ONLINE = /^https:\/\//.test(API_URL) || /^http:\/\/(localhost|127\.0\.0\.1)/.test(API_URL);
+/* 서버 미리 깨우기 — Apps Script가 잠들어 있을 때(콜드 스타트) 첫 연결 지연을 줄임 */
+if (ONLINE) { try { fetch(API_URL, { method: 'GET', mode: 'no-cors' }); } catch (e) { /* 무시 */ } }
 /* 오프라인 모드 전용 비밀번호(SHA-256). 온라인 모드에서는 서버(시트)가 검증합니다. */
 const GATE_HASH = 'd1858bd45ba9aa024308cdda67e91654466afd377d9e5fe0618223a17ff46313';
 const POLL_MS = 15000;
@@ -810,6 +820,17 @@ async function api(payload, timeoutMs) {
   } finally { clearTimeout(t); }
 }
 
+/* 일시적 오류는 잠시 후 자동 재시도 */
+async function apiRetry(payload, retries, timeoutMs) {
+  for (let i = 0; ; i++) {
+    try { return await api(payload, timeoutMs); }
+    catch (e) {
+      if (i >= (retries || 0)) throw e;
+      await new Promise(res => setTimeout(res, 1500));
+    }
+  }
+}
+
 /* ── 기록 저장소 ── */
 let RECORDS = [];          /* flat [{id, week, section, name, text, ts, reactions}] */
 let PENDING = [];
@@ -854,7 +875,7 @@ function ingestServer(list, weeks) {
 }
 
 /* ── 동기화 ── */
-let syncTimer = null, syncBusy = false;
+let syncTimer = null, syncBusy = false, syncFails = 0;
 function setSyncPill(state, text) {
   const el = document.getElementById('sync-pill');
   if (!el) return;
@@ -878,12 +899,15 @@ async function syncNow(manual) {
   if (manual) setSyncPill('busy', '⏳ 동기화 중…');
   try {
     await flushPending();
-    const r = await api({ action: 'list', pw: AUTH.pw });
-    if (r && r.ok) { ingestServer(r.records, r.weeks); setSyncPill('ok', '🟢 실시간 공유 중'); }
+    const r = await apiRetry({ action: 'list', pw: AUTH.pw }, 1);
+    if (r && r.ok) { syncFails = 0; ingestServer(r.records, r.weeks); setSyncPill('ok', '🟢 실시간 공유 중'); }
     else if (r && r.error === 'bad_pw') handleBadPw();
-    else setSyncPill('err', '🔴 연결 오류 · 눌러서 재시도');
+    else throw new Error('bad_response');
   } catch (e) {
-    setSyncPill('err', '🔴 연결 오류 · 눌러서 재시도');
+    syncFails++;
+    /* 한 번의 일시적 실패는 조용히 재연결 — 화면의 기록은 그대로 유지됨 */
+    if (manual || syncFails >= 2) setSyncPill('err', '🔴 연결 오류 · 눌러서 재시도');
+    else setSyncPill('busy', '🟡 재연결 중…');
   } finally { syncBusy = false; }
 }
 function startPolling() {
@@ -1005,7 +1029,7 @@ function enterApp() {
 /* 시트 명단(이름·가정·역할)이 바뀌면 재로그인 없이도 반영되도록 백그라운드 갱신 */
 function refreshRosterBg() {
   if (!ONLINE || !AUTH.ok) return;
-  api({ action: 'roster', pw: AUTH.pw }).then(r => {
+  apiRetry({ action: 'roster', pw: AUTH.pw }, 1).then(r => {
     if (!(r && r.ok && Array.isArray(r.roster) && r.roster.length)) return;
     if (JSON.stringify(r.roster) === JSON.stringify(ROSTER)) return;
     ROSTER = r.roster;
@@ -1028,7 +1052,7 @@ async function submitGate() {
   try {
     if (ONLINE) {
       let r = null;
-      try { r = await api({ action: 'login', pw }); }
+      try { r = await apiRetry({ action: 'login', pw }, 1); }
       catch (e) {
         err.textContent = '서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.';
         err.classList.add('show');
@@ -1609,50 +1633,142 @@ function closeQrModal() { document.getElementById('qr-backdrop').classList.remov
 function openExportModal() { document.getElementById('export-backdrop').classList.add('show'); }
 function closeExportModal() { document.getElementById('export-backdrop').classList.remove('show'); }
 function download(filename, content, mime) {
-  const blob = new Blob([content], { type: mime });
+  /* UTF-8 BOM: 윈도우 메모장·한글·엑셀에서 한글이 깨지지 않도록 */
+  const body = (mime && mime.indexOf('text/plain') === 0) ? '\ufeff' + content : content;
+  const blob = new Blob([body], { type: mime });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }
-function weekText(week) {
+/* ── 내보내기 포맷터 ── */
+const EXP_W = 50;
+function fmtClock(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const hh = d.getHours(), mm = String(d.getMinutes()).padStart(2, '0');
+  return (hh < 12 ? '오전 ' : '오후 ') + (hh % 12 === 0 ? 12 : hh % 12) + ':' + mm;
+}
+function expLikes(r) {
+  return REACT_EMOJIS.map(em => {
+    const n = ((r.reactions || {})[em] || []).length;
+    return n ? em + n : '';
+  }).filter(Boolean).join(' ');
+}
+function expIndent(text, pad) {
+  return String(text || '').split('\n').map(l => pad + l).join('\n');
+}
+function expEntry(r, pad, replyMark) {
+  const likes = expLikes(r);
+  const head = pad + (replyMark ? '↳ 답글 · ' : '') + r.name + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '');
+  return head + '\n' + expIndent(r.text, pad + '   ') + '\n';
+}
+function expTree(all, pad) {
+  const ids = new Set(all.map(r => r.id));
+  const tops = all.filter(r => !r.parent || !ids.has(r.parent)).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  const kids = {};
+  all.filter(r => r.parent && ids.has(r.parent)).forEach(r => { (kids[r.parent] = kids[r.parent] || []).push(r); });
+  let out = '';
+  tops.forEach(r => {
+    out += expEntry(r, pad, false);
+    (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(k => { out += expEntry(k, pad + '  ', true); });
+    out += '\n';
+  });
+  return out;
+}
+function expHeader(subtitle) {
+  return '═'.repeat(EXP_W) + '\n' +
+    '  예심교회 장년부 「선한사람」 나눔 기록\n' +
+    '  ' + subtitle + '\n' +
+    '  내보낸 날짜: ' + fmtKey(new Date()) + '\n' +
+    '═'.repeat(EXP_W) + '\n\n';
+}
+function allWeeksSorted(desc) {
+  const ws = Array.from(new Set(RECORDS.map(r => r.week).concat(Object.keys(WEEKMETA)))).sort();
+  return desc ? ws.reverse() : ws;
+}
+function expTopicLine(secKey, m) {
+  if (secKey === 'sermon' && m.sermon) return '이번 주 말씀: ' + m.sermon;
+  if (secKey === 'book' && m.book) return '이번 주 분량: ' + m.book;
+  if (secKey === 'prayer' && m.families && m.families.length) return '기도 가정: ' + m.families.join(', ');
+  return '';
+}
+function expWeekBlock(week) {
   const m = meta(week);
-  const line = (r, indent) => {
-    const likes = REACT_EMOJIS.map(em => {
-      const n = ((r.reactions || {})[em] || []).length;
-      return n ? em + n : '';
-    }).filter(Boolean).join(' ');
-    return indent + '[' + fmtTime(r.ts) + '] ' + r.name + ': ' + r.text + (likes ? '  (' + likes + ')' : '') + '\n';
-  };
-  let out = '🗓️ ' + fmtTitle(week) + ' (' + fmtSub(week) + ')\n' + '='.repeat(46) + '\n';
+  let out = '【 ' + fmtTitle(week) + ' 】 ' + fmtSub(week) + '\n' + '─'.repeat(EXP_W) + '\n';
   SECTIONS.forEach(sec => {
-    out += '\n■ ' + sec.title + '\n';
-    if (sec.key === 'sermon' && m.sermon) out += '   [이번 주 말씀] ' + m.sermon + '\n';
-    if (sec.key === 'book' && m.book) out += '   [이번 주 분량] ' + m.book + '\n';
-    if (sec.key === 'prayer' && m.families.length) out += '   [기도 가정] ' + m.families.join(', ') + '\n';
     const all = recsOf(week, sec.key);
-    if (!all.length) out += '   (기록 없음)\n';
-    const ids = new Set(all.map(r => r.id));
-    const tops = all.filter(r => !r.parent || !ids.has(r.parent)).sort((a, b) => (a.ts || 0) - (b.ts || 0));
-    const kids = {};
-    all.filter(r => r.parent && ids.has(r.parent)).forEach(r => { (kids[r.parent] = kids[r.parent] || []).push(r); });
-    tops.forEach(r => {
-      out += line(r, '   · ');
-      (kids[r.id] || []).sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(k => { out += line(k, '      └ '); });
-    });
+    out += '\n◆ ' + sec.title + '\n';
+    const t = expTopicLine(sec.key, m);
+    if (t) out += '  (' + t + ')\n';
+    out += '\n';
+    if (!all.length) { out += '  (기록 없음)\n\n'; return; }
+    out += expTree(all, '  ');
   });
   return out + '\n';
 }
+function expBySections() {
+  let out = '';
+  SECTIONS.forEach(sec => {
+    out += '◆◆ ' + sec.title + ' 모아보기\n' + '═'.repeat(EXP_W) + '\n\n';
+    let any = false;
+    allWeeksSorted(false).forEach(week => {
+      const all = recsOf(week, sec.key);
+      if (!all.length) return;
+      any = true;
+      const t = expTopicLine(sec.key, meta(week));
+      out += '▷ ' + fmtTitle(week) + (t ? '  —  ' + t : '') + '\n' + '─'.repeat(EXP_W) + '\n';
+      out += expTree(all, '  ');
+    });
+    if (!any) out += '  (기록 없음)\n\n';
+    out += '\n';
+  });
+  return out;
+}
+function expByPeople() {
+  const names = ROSTER.map(r => r.name);
+  RECORDS.forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
+  const secTitle = {};
+  SECTIONS.forEach(s => secTitle[s.key] = s.title);
+  const byId = {};
+  RECORDS.forEach(r => { byId[r.id] = r; });
+  let out = '';
+  names.forEach(name => {
+    const mine = RECORDS.filter(r => r.name === name)
+      .sort((a, b) => a.week === b.week ? (a.ts || 0) - (b.ts || 0) : (a.week < b.week ? -1 : 1));
+    if (!mine.length) return;
+    out += '◆ ' + name + '  (' + mine.length + '개의 나눔)\n' + '─'.repeat(EXP_W) + '\n';
+    mine.forEach(r => {
+      const likes = expLikes(r);
+      const replyMark = r.parent
+        ? (byId[r.parent] ? ' · ' + byId[r.parent].name + '님 글에 답글' : ' · 답글') : '';
+      out += '▷ ' + fmtTitle(r.week) + ' · ' + (secTitle[r.section] || r.section) + replyMark
+        + ' · ' + fmtClock(r.ts) + (likes ? '   (' + likes + ')' : '') + '\n';
+      out += expIndent(r.text, '    ') + '\n\n';
+    });
+    out += '\n';
+  });
+  return out || '(기록이 없습니다)\n';
+}
 function exportText(scope) {
-  let out = '예심교회 장년부 \'선한사람\' 모임 기록 — 말씀·도서·가정 중보기도\n내보낸 날짜: ' + fmtKey(new Date()) + '\n\n';
-  if (scope === 'week') out += weekText(curWeek);
-  else {
-    const weeks = Array.from(new Set(RECORDS.map(r => r.week).concat(Object.keys(WEEKMETA)))).sort().reverse();
-    if (!weeks.length) weeks.push(curWeek);
-    weeks.forEach(w => { out += weekText(w); });
+  let out = '', name = '';
+  if (scope === 'week') {
+    out = expHeader(fmtTitle(curWeek) + ' 기록') + expWeekBlock(curWeek);
+    name = '선한사람_기록_' + curWeek + '.txt';
+  } else if (scope === 'weeks') {
+    out = expHeader('전체 기록 — 주차별 정리');
+    const ws = allWeeksSorted(true);
+    if (!ws.length) ws.push(curWeek);
+    ws.forEach(w => { out += expWeekBlock(w); });
+    name = '선한사람_기록_전체_주차별_' + fmtKey(new Date()) + '.txt';
+  } else if (scope === 'sections') {
+    out = expHeader('전체 기록 — 질문별 정리 (말씀·도서·기도)') + expBySections();
+    name = '선한사람_기록_전체_질문별_' + fmtKey(new Date()) + '.txt';
+  } else {
+    out = expHeader('전체 기록 — 사람별 정리') + expByPeople();
+    name = '선한사람_기록_전체_사람별_' + fmtKey(new Date()) + '.txt';
   }
-  const name = scope === 'week' ? '장년부_기록_' + curWeek + '.txt' : '장년부_기록_전체_' + fmtKey(new Date()) + '.txt';
   download(name, out, 'text/plain;charset=utf-8');
   closeExportModal();
 }
