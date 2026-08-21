@@ -354,6 +354,7 @@ html, body {
 .rec-alt { font-size: 0.7rem; color: var(--text-soft); text-decoration: underline; }
 .rec-err {
   margin-top: 9px; font-size: 0.78rem; font-weight: 600; color: var(--coral);
+  white-space: pre-line; line-height: 1.55;
   background: var(--coral-bg); border-radius: 9px; padding: 8px 12px; display: none;
 }
 .rec-err.show { display: block; }
@@ -1777,7 +1778,7 @@ async function uploadRec() {
     } else { throw new Error('upload_failed'); }
   } catch (e) {
     document.getElementById('rec-state').textContent = '업로드 실패';
-    recErr('업로드에 실패했어요. 네트워크를 확인한 뒤 다시 시도해 주세요. (녹음은 그대로 있어요)');
+    recErr('업로드에 실패했어요. 다시 시도해 주세요. (녹음은 그대로 있어요)\n계속 실패하면 관리자에게 "녹음 권한 승인(authorizeDrive)"을 요청해 주세요.');
     recSetActions(`
       <button class="modal-btn ghost" onclick="cancelRec()">취소</button>
       <button class="modal-btn primary" onclick="uploadRec()">다시 올리기</button>`);
