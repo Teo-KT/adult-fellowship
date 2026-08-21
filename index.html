@@ -351,6 +351,16 @@ html, body {
 .rec-preview { width: 100%; margin-top: 10px; }
 .rec-audio { margin-top: 7px; }
 .rec-audio audio { width: 100%; max-width: 420px; height: 38px; display: block; }
+.audio-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; font-weight: 700; color: var(--teal-dark);
+  background: var(--teal-light); border: 1.5px solid var(--teal);
+  border-radius: 20px; padding: 8px 16px; cursor: pointer;
+  transition: opacity 0.2s; white-space: nowrap;
+}
+.audio-btn:hover { opacity: 0.85; }
+.audio-btn:disabled { opacity: 0.6; cursor: default; }
+.audio-note { font-size: 0.72rem; color: var(--text-soft); margin-top: 5px; line-height: 1.5; }
 .rec-alt { font-size: 0.7rem; color: var(--text-soft); text-decoration: underline; }
 .rec-err {
   margin-top: 9px; font-size: 0.78rem; font-weight: 600; color: var(--coral);
@@ -1438,7 +1448,9 @@ function itemHTML(r, isReply, pendingIds) {
   const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
   const safeAudio = (typeof r.audio === 'string' && /^[\w-]{10,}$/.test(r.audio)) ? r.audio : '';
   const audioHtml = safeAudio
-    ? `<div class="rec-audio"><audio controls preload="none" src="https://drive.google.com/uc?export=media&id=${safeAudio}"></audio><a class="rec-alt" href="https://drive.google.com/file/d/${safeAudio}/view" target="_blank" rel="noopener">재생이 안 되면 드라이브에서 듣기 ↗</a></div>`
+    ? `<div class="rec-audio" id="audio-${r.id}">
+         <button class="audio-btn" data-audio="${safeAudio}" data-arid="${r.id}">▶️ 녹음 듣기</button>
+       </div>`
     : '';
   const hideText = safeAudio && r.text === '(녹음 나눔)';
   const editBtn = (canEdit(r) && !safeAudio)
@@ -1533,6 +1545,7 @@ function renderSectionList(secKey) {
       addReply(btn.dataset.sec, btn.dataset.replyadd);
     }
   }));
+  list.querySelectorAll('[data-audio]').forEach(b => b.addEventListener('click', () => playAudio(b.dataset.audio, b.dataset.arid)));
   list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => startEdit(b.dataset.edit)));
   list.querySelectorAll('[data-editcancel]').forEach(b => b.addEventListener('click', () => cancelEdit()));
   list.querySelectorAll('[data-editsave]').forEach(b => b.addEventListener('click', () => saveEdit(b.dataset.editsave)));
@@ -1580,6 +1593,46 @@ function addReply(secKey, parentId) {
   if (text.length > 2000) { alert('한 번에 2,000자까지 입력할 수 있어요.'); return; }
   replyTarget = null;
   pushRecord(makeRecord(secKey, text, parentId));
+}
+
+/* ── 녹음 재생 ──
+   드라이브 직접 링크는 브라우저가 오디오로 인식하지 못하므로,
+   서버에서 파일 내용을 받아 브라우저 안에서 재생합니다. */
+const audioCache = {};
+
+async function playAudio(fileId, recId) {
+  const box = document.getElementById('audio-' + recId);
+  if (!box) return;
+  if (audioCache[fileId]) { mountAudio(box, audioCache[fileId]); return; }
+  const btn = box.querySelector('.audio-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 불러오는 중…'; }
+  try {
+    const r = await apiRetry({ action: 'audio', pw: AUTH.pw, id: fileId }, 1, 90000);
+    if (r && r.ok && r.data) {
+      const bin = atob(r.data);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: r.type || 'audio/mp4' }));
+      audioCache[fileId] = url;
+      mountAudio(box, url, true);
+    } else if (r && r.error === 'unknown_action') {
+      box.innerHTML = `<div class="audio-note">서버 업데이트가 필요해 앱에서 바로 들을 수 없어요.<br>
+        <a class="rec-alt" href="https://drive.google.com/file/d/${fileId}/view" target="_blank" rel="noopener">드라이브에서 듣기 ↗</a></div>`;
+    } else { throw new Error('load_failed'); }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ 다시 시도'; }
+    const note = document.createElement('div');
+    note.className = 'audio-note';
+    note.innerHTML = `불러오지 못했어요. <a class="rec-alt" href="https://drive.google.com/file/d/${fileId}/view" target="_blank" rel="noopener">드라이브에서 듣기 ↗</a>`;
+    if (!box.querySelector('.audio-note')) box.appendChild(note);
+  }
+}
+function mountAudio(box, url, autoplay) {
+  box.innerHTML = '';
+  const a = document.createElement('audio');
+  a.controls = true; a.src = url; a.preload = 'auto';
+  box.appendChild(a);
+  if (autoplay) a.play().catch(() => { /* 자동재생 차단 시 무시 */ });
 }
 
 /* ── 기록 수정 ── */
