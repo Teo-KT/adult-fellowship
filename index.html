@@ -280,9 +280,9 @@ html, body {
 .me-tag.proxy { background: var(--amber-bg); color: #b06f05; border-color: var(--amber); }
 .response-input {
   flex: 1; background: transparent; border: none;
-  padding: 8px 9px; font-family: inherit; font-size: 0.91rem;
-  outline: none; resize: none; min-height: 40px; max-height: 120px;
-  line-height: 1.5; color: var(--text-dark);
+  padding: 8px 9px; font-family: inherit; font-size: 0.95rem;
+  outline: none; resize: none; min-height: 52px; max-height: 260px;
+  line-height: 1.6; color: var(--text-dark); overflow-y: auto;
 }
 .response-input::placeholder { color: var(--text-soft); }
 .add-btn {
@@ -325,6 +325,7 @@ html, body {
   font-size: 0.72rem; padding: 3px 10px; border-radius: 12px;
   background: var(--white); border: 1px solid var(--gray-2);
   cursor: pointer; transition: all 0.15s; color: var(--text-mid);
+  white-space: nowrap;
 }
 .reply-btn:hover, .reply-btn.on { background: var(--purple-bg); border-color: var(--purple); color: #6b4fa3; }
 .reply-input-row {
@@ -356,6 +357,33 @@ html, body {
   background: var(--coral-bg); border-radius: 9px; padding: 8px 12px; display: none;
 }
 .rec-err.show { display: block; }
+
+/* 기록 수정 */
+.edit-btn {
+  font-size: 0.72rem; padding: 3px 10px; border-radius: 12px;
+  background: var(--white); border: 1px solid var(--gray-2);
+  cursor: pointer; transition: all 0.15s; color: var(--text-mid);
+  white-space: nowrap;
+}
+.edit-btn:hover, .edit-btn.on { background: var(--amber-bg); border-color: var(--amber); color: #b06f05; }
+.edit-box { margin: 4px 0 2px; }
+.edit-box textarea {
+  width: 100%; box-sizing: border-box;
+  background: var(--white); border: 2px solid var(--amber); border-radius: 10px;
+  padding: 9px 11px; font-family: inherit; font-size: 0.95rem; line-height: 1.6;
+  color: var(--text-dark); outline: none; resize: none;
+  min-height: 76px; max-height: 300px; overflow-y: auto;
+}
+.edit-actions { display: flex; gap: 7px; margin-top: 7px; }
+.edit-actions button {
+  border: none; cursor: pointer; font-family: inherit;
+  font-size: 0.78rem; font-weight: 700; padding: 8px 16px; border-radius: 10px;
+  transition: opacity 0.2s;
+}
+.edit-actions button:hover { opacity: 0.86; }
+.edit-cancel { background: var(--gray-1); color: var(--text-mid); border: 1.5px solid var(--gray-2) !important; }
+.edit-save { background: linear-gradient(135deg, var(--amber), var(--coral)); color: white; }
+.edited-chip { font-size: 0.58rem; font-weight: 700; color: var(--text-soft); background: var(--gray-2); border-radius: 7px; padding: 2px 7px; }
 @keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .response-avatar {
   flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
@@ -371,6 +399,7 @@ html, body {
   font-size: 0.72rem; padding: 3px 10px; border-radius: 12px;
   background: var(--white); border: 1px solid var(--gray-2);
   cursor: pointer; transition: all 0.15s; color: var(--text-mid);
+  white-space: nowrap;
 }
 .react-btn:hover { background: var(--sky-mid); border-color: var(--blue); }
 .react-btn.reacted { background: var(--teal-light); border-color: var(--teal); color: var(--teal-dark); font-weight: 700; }
@@ -505,6 +534,29 @@ html, body {
   #qr-header-btn { display: none; }
   .tool-btn { min-width: 44%; }
   #week-title { font-size: 1.05rem; }
+
+  /* 입력창: 전체 폭으로 넓게, 버튼은 아래 줄에 크게 */
+  .response-input-row, .reply-input-row { flex-wrap: wrap; gap: 8px; padding: 9px; }
+  .response-input {
+    flex: 1 1 100%; order: -1; width: 100%;
+    min-height: 108px; font-size: 16px; /* 16px: iOS 자동 확대 방지 */
+    padding: 10px 8px; line-height: 1.65;
+  }
+  .me-tag { order: 1; font-size: 0.78rem; padding: 10px 13px; }
+  .mic-btn { order: 2; width: 52px; height: 46px; font-size: 1.2rem; }
+  .add-btn { order: 3; flex: 1; height: 46px; width: auto; min-width: 90px; }
+  .reply-input-row { margin-left: 14px; }
+  .reply-input-row .response-input { min-height: 84px; }
+
+  /* 기록 카드: 손가락으로 누르기 편하게 */
+  .reactions { flex-wrap: wrap; gap: 6px; }
+  .react-btn, .reply-btn, .edit-btn {
+    font-size: 0.76rem; padding: 7px 11px; white-space: nowrap; line-height: 1.2;
+  }
+  .response-delete { font-size: 1.1rem; padding: 6px 8px; }
+  .reply-group { margin-left: 10px; padding-left: 10px; }
+  .response-item.reply { padding: 9px 11px; }
+  .edit-box textarea { font-size: 16px; min-height: 108px; }
 }
 </style>
 </head>
@@ -1343,6 +1395,7 @@ function renderSections() {
       <div class="responses-list" id="list-${sec.key}"></div>
     </div>`).join('');
   box.querySelectorAll('.topic-edit').forEach(b => b.addEventListener('click', () => editTopic(b.dataset.sec)));
+  bindAllAutoGrow();
   SECTIONS.forEach(sec => renderSectionList(sec.key));
   refreshAuthorTags();
 }
@@ -1350,6 +1403,7 @@ function renderSections() {
 /* 정렬 상태 + 답글 입력 상태 */
 const sortMode = {};      /* secKey -> 'time' | 'likes' */
 let replyTarget = null;   /* 답글 입력창이 열린 기록 id */
+let editTarget = null;    /* 수정 중인 기록 id */
 
 function setSort(secKey, mode) {
   sortMode[secKey] = mode;
@@ -1376,6 +1430,7 @@ function itemHTML(r, isReply, pendingIds) {
     return `<button class="react-btn ${mine ? 'reacted' : ''}" data-id="${r.id}" data-em="${em}" title="${esc(names.join(', '))}">${em}${names.length ? ' ' + names.length : ''}</button>`;
   }).join('');
   const replyBtn = !isReply ? `<button class="reply-btn ${replyTarget === r.id ? 'on' : ''}" data-reply="${r.id}">💬 답글</button>` : '';
+  const editing = editTarget === r.id;
   const isPending = pendingIds.has(r.id);
   const fresh = !seenIds.has(r.id);
   seenIds.add(r.id);
@@ -1385,14 +1440,26 @@ function itemHTML(r, isReply, pendingIds) {
     ? `<div class="rec-audio"><audio controls preload="none" src="https://drive.google.com/uc?export=media&id=${safeAudio}"></audio><a class="rec-alt" href="https://drive.google.com/file/d/${safeAudio}/view" target="_blank" rel="noopener">재생이 안 되면 드라이브에서 듣기 ↗</a></div>`
     : '';
   const hideText = safeAudio && r.text === '(녹음 나눔)';
+  const editBtn = (canEdit(r) && !safeAudio)
+    ? `<button class="edit-btn ${editing ? 'on' : ''}" data-edit="${r.id}">✏️ 수정</button>` : '';
+  const editedChip = r.edited ? '<span class="edited-chip">수정됨</span>' : '';
+  const bodyHtml = editing
+    ? `<div class="edit-box">
+        <textarea id="edittext-${r.id}" rows="3">${esc(r.text)}</textarea>
+        <div class="edit-actions">
+          <button class="edit-cancel" data-editcancel="1">취소</button>
+          <button class="edit-save" data-editsave="${r.id}">저장</button>
+        </div>
+      </div>`
+    : (hideText ? '' : `<div class="response-text">${esc(r.text)}</div>`);
   return `
   <div class="response-item ${isReply ? 'reply' : ''} ${fresh ? 'fresh' : ''} ${isPending ? 'pending' : ''}">
     <div class="response-avatar" style="background:${avatarColor(r.name || '?')}">${esc((r.name || '?').charAt(0))}</div>
     <div class="response-body">
-      <div class="response-name">${esc(r.name)} ${safeAudio ? '<span class="reply-chip">🎤 녹음</span>' : ''} ${isReply ? '<span class="reply-chip">↳ 답글</span>' : ''} <span class="rec-time">${fmtTime(r.ts)}</span> ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
-      ${hideText ? '' : `<div class="response-text">${esc(r.text)}</div>`}
+      <div class="response-name">${esc(r.name)} ${safeAudio ? '<span class="reply-chip">🎤 녹음</span>' : ''} ${isReply ? '<span class="reply-chip">↳ 답글</span>' : ''} <span class="rec-time">${fmtTime(r.ts)}</span> ${editedChip} ${isPending ? '<span class="pending-tag">⟳ 전송 중</span>' : ''}</div>
+      ${bodyHtml}
       ${audioHtml}
-      <div class="reactions">${reacts}${replyBtn}</div>
+      <div class="reactions">${reacts}${replyBtn}${editBtn}</div>
     </div>
     ${delBtn}
   </div>`;
@@ -1410,6 +1477,14 @@ function replyInputHTML(secKey, parent) {
 function renderSectionList(secKey) {
   const list = document.getElementById('list-' + secKey);
   if (!list) return;
+  /* 재렌더링 전, 수정 중이던 내용 보존 */
+  let savedEdit = null;
+  if (editTarget) {
+    const et = document.getElementById('edittext-' + editTarget);
+    if (et && et.closest('#list-' + secKey)) {
+      savedEdit = { id: editTarget, val: et.value, focus: document.activeElement === et, s: et.selectionStart, e: et.selectionEnd };
+    }
+  }
   /* 재렌더링 전, 이 목록 안에서 작성 중이던 답글 내용을 보존 */
   let savedReply = null;
   if (replyTarget) {
@@ -1457,6 +1532,20 @@ function renderSectionList(secKey) {
       addReply(btn.dataset.sec, btn.dataset.replyadd);
     }
   }));
+  list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => startEdit(b.dataset.edit)));
+  list.querySelectorAll('[data-editcancel]').forEach(b => b.addEventListener('click', () => cancelEdit()));
+  list.querySelectorAll('[data-editsave]').forEach(b => b.addEventListener('click', () => saveEdit(b.dataset.editsave)));
+  /* 보존해 둔 수정 내용 복원 */
+  if (savedEdit) {
+    const et2 = document.getElementById('edittext-' + savedEdit.id);
+    if (et2) {
+      et2.value = savedEdit.val;
+      if (savedEdit.focus) {
+        et2.focus();
+        try { et2.setSelectionRange(savedEdit.s, savedEdit.e); } catch (e) { /* 무시 */ }
+      }
+    }
+  }
   /* 보존해 둔 답글 내용 복원 */
   if (savedReply) {
     const rt2 = document.getElementById('replytext-' + savedReply.id);
@@ -1469,6 +1558,7 @@ function renderSectionList(secKey) {
     }
   }
   refreshAuthorTags();
+  bindAllAutoGrow();
 }
 
 function toggleReplyBox(secKey, id) {
@@ -1489,6 +1579,62 @@ function addReply(secKey, parentId) {
   if (text.length > 2000) { alert('한 번에 2,000자까지 입력할 수 있어요.'); return; }
   replyTarget = null;
   pushRecord(makeRecord(secKey, text, parentId));
+}
+
+/* ── 기록 수정 ── */
+function canEdit(rec) {
+  if (!PROFILE || !rec) return false;
+  return rec.name === myName() || isAdmin();
+}
+function startEdit(id) {
+  const rec = RECORDS.find(r => r.id === id);
+  if (!rec || !canEdit(rec)) return;
+  editTarget = (editTarget === id) ? null : id;
+  renderSectionList(rec.section);
+  if (editTarget) {
+    const t = document.getElementById('edittext-' + id);
+    if (t) { bindAutoGrow(t); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+  }
+}
+function cancelEdit() {
+  const rec = RECORDS.find(r => r.id === editTarget);
+  editTarget = null;
+  if (rec) renderSectionList(rec.section);
+}
+async function saveEdit(id) {
+  const rec = RECORDS.find(r => r.id === id);
+  const t = document.getElementById('edittext-' + id);
+  if (!rec || !t) return;
+  const text = t.value.trim();
+  if (!text) { t.focus(); return; }
+  if (text.length > 2000) { alert('2,000자까지 입력할 수 있어요.'); return; }
+  if (text === rec.text) { cancelEdit(); return; }
+  const before = rec.text;
+  rec.text = text;
+  rec.edited = Date.now();
+  editTarget = null;
+  saveLocalRecords();
+  renderSectionList(rec.section);
+  if (!ONLINE) { showSaveIndicator('✓ 수정되었습니다'); return; }
+  showSaveIndicator('✓ 수정 중…');
+  try {
+    const r = await apiRetry({ action: 'edit', pw: AUTH.pw, id, text, by: { name: myName() } }, 1);
+    if (r && r.ok) { showSaveIndicator('✓ 수정이 공유되었습니다'); }
+    else if (r && r.error === 'bad_pw') { handleBadPw(); }
+    else if (r && r.error === 'unknown_action') {
+      rec.text = before; rec.edited = 0;
+      saveLocalRecords(); renderSectionList(rec.section);
+      alert('서버가 아직 수정 기능을 지원하지 않아요.\n관리자에게 "Apps Script 새 버전 배포"를 요청해 주세요.');
+    } else if (r && r.error === 'forbidden') {
+      rec.text = before; rec.edited = 0;
+      saveLocalRecords(); renderSectionList(rec.section);
+      alert('본인이 남긴 기록만 수정할 수 있어요.');
+    } else { throw new Error('edit_failed'); }
+  } catch (e) {
+    rec.text = before; rec.edited = 0;
+    saveLocalRecords(); renderSectionList(rec.section);
+    showSaveIndicator('⚠️ 수정 실패 — 다시 시도해 주세요', true);
+  }
 }
 
 /* ── 녹음 나눔 ── */
@@ -1638,8 +1784,30 @@ async function uploadRec() {
   }
 }
 
+/* 모바일에서는 Enter가 줄바꿈 — 긴 글을 편하게 쓰도록 */
+function isPhone() {
+  return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+}
+/* 내용에 맞춰 입력창 높이 자동 조절 */
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  const max = parseInt(getComputedStyle(el).maxHeight) || 260;
+  el.style.height = Math.min(el.scrollHeight + 2, max) + 'px';
+}
+function bindAutoGrow(el) {
+  if (!el || el.dataset.grow) return;
+  el.dataset.grow = '1';
+  el.addEventListener('input', () => autoGrow(el));
+  autoGrow(el);
+}
+function bindAllAutoGrow() {
+  document.querySelectorAll('.response-input, .edit-box textarea').forEach(bindAutoGrow);
+}
+function resetGrow(el) { if (el) { el.style.height = 'auto'; autoGrow(el); } }
+
 function handleInputKey(e, secKey) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !isPhone()) {
     e.preventDefault();
     addResponse(secKey);
   }
@@ -1652,6 +1820,7 @@ function addResponse(secKey) {
   if (text.length > 2000) { alert('한 번에 2,000자까지 입력할 수 있어요.'); return; }
   pushRecord(makeRecord(secKey, text));
   el.value = '';
+  resetGrow(el);
   el.focus();
 }
 
