@@ -1415,6 +1415,7 @@ function renderSections() {
 const sortMode = {};      /* secKey -> 'time' | 'likes' */
 let replyTarget = null;   /* 답글 입력창이 열린 기록 id */
 let editTarget = null;    /* 수정 중인 기록 id */
+const audioCache = {};   /* 불러온 녹음 파일ID → 재생용 URL */
 
 function setSort(secKey, mode) {
   sortMode[secKey] = mode;
@@ -1447,10 +1448,12 @@ function itemHTML(r, isReply, pendingIds) {
   seenIds.add(r.id);
   const delBtn = canDelete(r) ? `<button class="response-delete" data-id="${r.id}" title="삭제">✕</button>` : '';
   const safeAudio = (typeof r.audio === 'string' && /^[\w-]{10,}$/.test(r.audio)) ? r.audio : '';
+  const cachedAudio = safeAudio ? audioCache[safeAudio] : '';
   const audioHtml = safeAudio
-    ? `<div class="rec-audio" id="audio-${r.id}">
-         <button class="audio-btn" data-audio="${safeAudio}" data-arid="${r.id}">▶️ 녹음 듣기</button>
-       </div>`
+    ? `<div class="rec-audio" id="audio-${r.id}">` + (cachedAudio
+        ? `<audio controls preload="auto" src="${cachedAudio}"></audio>`
+        : `<button class="audio-btn" data-audio="${safeAudio}" data-arid="${r.id}">▶️ 녹음 듣기</button>`)
+      + `</div>`
     : '';
   const hideText = safeAudio && r.text === '(녹음 나눔)';
   const editBtn = (canEdit(r) && !safeAudio)
@@ -1490,6 +1493,12 @@ function replyInputHTML(secKey, parent) {
 function renderSectionList(secKey) {
   const list = document.getElementById('list-' + secKey);
   if (!list) return;
+  /* 재렌더링 전, 듣고 있던 녹음의 재생 위치 보존 */
+  let savedAudio = null;
+  const playingEl = list.querySelector('.rec-audio audio');
+  if (playingEl && playingEl.src) {
+    savedAudio = { src: playingEl.src, time: playingEl.currentTime, paused: playingEl.paused };
+  }
   /* 재렌더링 전, 수정 중이던 내용 보존 */
   let savedEdit = null;
   if (editTarget) {
@@ -1549,6 +1558,18 @@ function renderSectionList(secKey) {
   list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => startEdit(b.dataset.edit)));
   list.querySelectorAll('[data-editcancel]').forEach(b => b.addEventListener('click', () => cancelEdit()));
   list.querySelectorAll('[data-editsave]').forEach(b => b.addEventListener('click', () => saveEdit(b.dataset.editsave)));
+  /* 듣고 있던 녹음 복원 (동기화로 재생이 끊기지 않도록) */
+  if (savedAudio) {
+    list.querySelectorAll('.rec-audio audio').forEach(a => {
+      if (a.src !== savedAudio.src) return;
+      const resume = () => {
+        try { a.currentTime = savedAudio.time; } catch (e) { /* 무시 */ }
+        if (!savedAudio.paused) a.play().catch(() => { /* 무시 */ });
+      };
+      if (a.readyState >= 1) resume();
+      else a.addEventListener('loadedmetadata', resume, { once: true });
+    });
+  }
   /* 보존해 둔 수정 내용 복원 */
   if (savedEdit) {
     const et2 = document.getElementById('edittext-' + savedEdit.id);
@@ -1598,7 +1619,6 @@ function addReply(secKey, parentId) {
 /* ── 녹음 재생 ──
    드라이브 직접 링크는 브라우저가 오디오로 인식하지 못하므로,
    서버에서 파일 내용을 받아 브라우저 안에서 재생합니다. */
-const audioCache = {};
 
 async function playAudio(fileId, recId) {
   const box = document.getElementById('audio-' + recId);
